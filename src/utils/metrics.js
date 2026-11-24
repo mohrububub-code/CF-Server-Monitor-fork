@@ -189,12 +189,44 @@ export function isDisabledProbeMetric(value) {
   return value === false || value === 'false';
 }
 
+const LINE_PROBE_FAILURES = new Set(['unsupported', 'unreachable', 'timeout', 'no_target', 'dns_error', 'refused', 'error']);
+
+export function normalizeLineProbes(value) {
+  if (typeof value === 'string') {
+    try { value = JSON.parse(value); } catch { return null; }
+  }
+  if (!isPlainMetricObject(value)) return null;
+
+  const result = {};
+  for (const family of ['v4', 'v6']) {
+    const lines = {};
+    for (const carrier of ['ct', 'cu', 'cm']) {
+      const sample = value[family]?.[carrier];
+      if (!isPlainMetricObject(sample)) continue;
+      const { status, ping, loss } = sample;
+      if (status === 'ok' && Number.isInteger(ping) && ping > 0 &&
+          Number.isInteger(loss) && loss >= 0 && loss < 100) {
+        lines[carrier] = { status, ping, loss };
+      } else if (LINE_PROBE_FAILURES.has(status)) {
+        lines[carrier] = status === 'timeout' ? { status, loss: 100 } : { status };
+      }
+    }
+    if (Object.keys(lines).length) result[family] = lines;
+  }
+  return Object.keys(result).length ? result : null;
+}
+
 // 将探针上报的指标字段统一转换为数字类型，与 /api/servers 的 servers[] 字段类型保持一致。
 // 数据库 D1 对 REAL/INTEGER 列返回 JS number，而探针 POST 的原始字段可能是字符串，
 // latestReportUpdates 和 WebSocket 推送直接透传探针数据，需要在此统一类型。
 export function coerceNumericMetricFields(payload) {
   if (!payload || typeof payload !== 'object') return payload;
   const result = { ...payload };
+  if (hasOwnMetric(result, 'line_probes')) {
+    const lines = normalizeLineProbes(result.line_probes);
+    if (lines) result.line_probes = lines;
+    else delete result.line_probes;
+  }
 
   for (const field of NUMERIC_METRIC_FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(result, field)) continue;
@@ -236,6 +268,9 @@ export function normalizeProbeMetricRow(metrics) {
   if (!metrics) return metrics;
 
   const normalized = { ...metrics };
+  if (hasOwnMetric(normalized, 'line_probes')) {
+    normalized.line_probes = normalizeLineProbes(normalized.line_probes);
+  }
   for (const field of PROBE_METRIC_FIELDS) {
     if (Object.prototype.hasOwnProperty.call(normalized, field)) {
       normalized[field] = normalizeProbeMetric(normalized[field]);
@@ -274,6 +309,7 @@ export function mergeMetricsIntoServer(server, metrics) {
   server.loss_node_2 = normalizeProbeMetric(metrics.loss_node_2);
   server.loss_node_3 = normalizeProbeMetric(metrics.loss_node_3);
   server.loss_node_4 = normalizeProbeMetric(metrics.loss_node_4);
+  server.line_probes = metrics.line_probes ?? null;
   server.ram_total = metrics.ram_total || 0;
   server.ram_used = metrics.ram_used || 0;
   server.swap_total = metrics.swap_total || 0;

@@ -1,6 +1,6 @@
 import { getAllServers, getLatestMetricsCache, setLatestMetricsCache, getMetricsHistoryCache, setMetricsHistoryCache, getCacheDuration, clearAllCaches } from '../utils/cache.js';
 import { saveSiteOptions, debug, normalizeLongHistoryPoints, DEFAULT_LONG_HISTORY_POINTS } from '../utils/settings.js';
-import { attachDiskMetricsObject, flattenDiskMetrics, isDisabledProbeMetric, normalizeProbeMetricRow } from '../utils/metrics.js';
+import { attachDiskMetricsObject, flattenDiskMetrics, isDisabledProbeMetric, normalizeLineProbes, normalizeProbeMetricRow } from '../utils/metrics.js';
 import { ensureServerOptimization, buildHistoryId, getServerHistoryInfo, getHistoryIdRange } from './indexOptimization.js';
 import { addHistoryColumns } from './updateDatabase.js';
 import {
@@ -24,8 +24,10 @@ let dbInitialized = false;
 const LOSS_AGG_COLUMNS = new Set(['loss_ct', 'loss_cu', 'loss_cm', 'loss_bd', 'loss_node_1', 'loss_node_2', 'loss_node_3', 'loss_node_4']);
 const DEFAULT_HISTORY_MAX_POINTS = 160;
 const LATENCY_NODE_FIELDS = ['ct', 'cu', 'cm', 'bd', 'node_1', 'node_2', 'node_3', 'node_4'];
-const DASHBOARD_LATENCY_COLUMNS = LATENCY_NODE_FIELDS
-  .flatMap(field => [`ping_${field}`, `loss_${field}`]);
+const DASHBOARD_LATENCY_COLUMNS = [
+  ...LATENCY_NODE_FIELDS.flatMap(field => [`ping_${field}`, `loss_${field}`]),
+  'line_probes'
+];
 const dashboardLatencyHistoryCache = new Map();
 
 function pruneDashboardLatencyHistoryCache(now = Date.now()) {
@@ -363,6 +365,7 @@ function buildLatencyHistoryPoint(row, metricType, { includeEmpty = false } = {}
 function normalizeDashboardLatencyRows(rows, options = {}) {
   const ping = [];
   const loss = [];
+  const lines = [];
 
   for (const row of rows || []) {
     const pingPoint = buildLatencyHistoryPoint(row, 'ping', options);
@@ -370,11 +373,14 @@ function normalizeDashboardLatencyRows(rows, options = {}) {
 
     const lossPoint = buildLatencyHistoryPoint(row, 'loss', options);
     if (lossPoint) loss.push(lossPoint);
+
+    const probes = normalizeLineProbes(row.line_probes);
+    if (probes) lines.push({ ts: row.timestamp, ...probes });
   }
 
   ping.sort((a, b) => a.ts - b.ts);
   loss.sort((a, b) => a.ts - b.ts);
-  return { ping, loss };
+  return lines.length ? { ping, loss, lines } : { ping, loss };
 }
 
 function parseDashboardLatencySample(row) {
@@ -609,6 +615,7 @@ export async function saveMetricsHistory(db, serverId, historyPartitionId, metri
 
   const insertHistoryRow = async () => {
     const diskMetrics = flattenDiskMetrics(metrics);
+    const lineProbes = normalizeLineProbes(metrics.line_probes);
 
     await db.prepare(`
     INSERT INTO metrics_history (
@@ -669,7 +676,8 @@ export async function saveMetricsHistory(db, serverId, historyPartitionId, metri
     metrics.ip_v6 || '0',
     metrics.boot_time || '',
     parseFloat(metrics.net_rx_monthly) || 0,
-    parseFloat(metrics.net_tx_monthly) || 0
+    parseFloat(metrics.net_tx_monthly) || 0,
+    lineProbes ? JSON.stringify(lineProbes) : null
     ).run();
   };
 

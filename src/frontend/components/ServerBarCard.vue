@@ -1,5 +1,6 @@
 <template>
-  <router-link :to="to" class="server-card" :data-region="regionCode">
+  <router-link :to="to" custom v-slot="{ href, navigate }">
+  <div class="server-card" :data-region="regionCode" @click="navigate">
     <div class="server-card-header">
       <div class="server-identity">
         <span v-if="regionCode && regionCode !== 'xx'" class="country-os-icons">
@@ -10,7 +11,7 @@
           <span class="flag-fallback">🏳️</span>
           <OsIcon :os="server.os" />
         </span>
-        <span class="server-name">{{ server.name }}</span>
+        <a :href="href" class="server-name" @click.stop="navigate">{{ server.name }}</a>
       </div>
       <span class="status-label" :style="{ color: statusColor, borderColor: statusColor }">{{ statusText }}</span>
     </div>
@@ -108,6 +109,8 @@
     </div>
     <div class="server-space"></div>
     <ServerLatencyPanel
+      :server="server"
+      :online="isOnline"
       :show-three-net-details="sysConfig.show_three_net_details"
       :has-three-net-details="hasThreeNetDetails"
       :three-net-details="threeNetDetails"
@@ -120,6 +123,7 @@
       :format-loss-value="formatLossValue"
       :is-ping-valid="isPingValid"
     />
+  </div>
   </router-link>
 </template>
 
@@ -148,6 +152,7 @@ const {
   trans,
   regionCode,
   statusColor,
+  isOnline,
   statusText,
   cpuPercent,
   ramPercent,

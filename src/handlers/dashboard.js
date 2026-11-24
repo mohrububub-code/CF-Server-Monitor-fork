@@ -92,6 +92,7 @@ function attachLatencyHistoryToServers(servers, latencyHistory) {
     const window = latencyHistory?.get(String(server.id)) || createEmptyLatencyWindow();
     server.ping = window.ping;
     server.loss = window.loss;
+    if (window.lines) server.line_history = window.lines;
   }
 }
 

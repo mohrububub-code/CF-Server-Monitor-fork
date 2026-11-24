@@ -38,7 +38,8 @@ async function createHistoryTable(db) {
       loss_node_1 INTEGER DEFAULT NULL,
       loss_node_2 INTEGER DEFAULT NULL,
       loss_node_3 INTEGER DEFAULT NULL,
-      loss_node_4 INTEGER DEFAULT NULL
+      loss_node_4 INTEGER DEFAULT NULL,
+      line_probes TEXT
     )
   `).run();
 }
@@ -121,6 +122,10 @@ test('dashboard latency history preserves empty buckets inside the window', asyn
         ${latencyRow(partitionId, slotTimestamp(19), 90)}
     `).run();
 
+    const probes = { v4: { ct: { status: 'timeout', loss: 100 } }, v6: { ct: { status: 'ok', ping: 120, loss: 0 } } };
+    await db.prepare('UPDATE metrics_history SET line_probes = ? WHERE timestamp = ?')
+      .bind(JSON.stringify(probes), slotTimestamp(5)).run();
+
     const history = await getDashboardLatencyHistory(db, [{
       id: 'server-gap',
       history_partition_id: partitionId,
@@ -140,6 +145,7 @@ test('dashboard latency history preserves empty buckets inside the window', asyn
     assert.equal(window.ping[19].ct, 90);
     assert.equal(window.loss[1].ct, undefined);
     assert.equal(window.ping[5].ts, queryStart + 5 * intervalMs);
+    assert.deepEqual(window.lines, [{ ts: window.ping[5].ts, ...probes }]);
   } finally {
     await miniflare.dispose();
   }
