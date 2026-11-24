@@ -37,6 +37,23 @@
 
       <div class="form-row mobile-two-row">
         <div class="form-group flex-1">
+          <label class="form-label">{{ trans.provider || '服务商' }}</label>
+          <input type="text" name="edit_provider" autocomplete="off" v-model.trim="editForm.provider" class="form-input" :placeholder="trans.providerPlaceholder || '例如：DataWave / AWS'">
+        </div>
+
+        <div class="form-group flex-1">
+          <label class="form-label">{{ trans.purchaseDate || '购买日期' }}</label>
+          <input type="date" name="edit_purchase_date" autocomplete="off" v-model="editForm.purchase_date" class="form-input" @click="openDatePicker">
+        </div>
+
+        <div class="form-group flex-1">
+          <label class="form-label">{{ trans.expirationDate }}</label>
+          <input type="date" name="edit_expire_date" autocomplete="off" v-model="editForm.expire_date" class="form-input" @click="openDatePicker">
+        </div>
+      </div>
+
+      <div class="form-row mobile-two-row">
+        <div class="form-group flex-1">
           <label class="form-label">{{ trans.currency }}</label>
           <select v-model="editForm.currency" class="form-select">
             <option v-for="item in currencySelectOptions" :key="item.symbol" :value="item.symbol">{{ currencyLabel(item) }}</option>
@@ -45,7 +62,7 @@
 
         <div class="form-group flex-1">
           <label class="form-label">{{ trans.price }}</label>
-          <input type="text" name="edit_price" autocomplete="off" inputmode="decimal" v-model="editForm.price" class="form-input" placeholder="40.00" @blur="normalizePriceInput">
+          <input type="text" name="edit_price" autocomplete="off" inputmode="decimal" v-model="editForm.price" class="form-input" placeholder="248.00" @blur="normalizePriceInput">
         </div>
 
         <div class="form-group flex-1">
@@ -54,11 +71,19 @@
             <option v-for="item in billingCycleOptions" :key="item.value" :value="item.value">{{ cycleLabel(item) }}</option>
           </select>
         </div>
+      </div>
 
-        <div class="form-group flex-1">
-          <label class="form-label">{{ trans.expirationDate }}</label>
-          <input type="date" name="edit_expire_date" autocomplete="off" v-model="editForm.expire_date" class="form-input" @click="openDatePicker">
-        </div>
+      <div v-if="billingPreviewMonthly || billingPreviewExpireText" class="edit-billing-preview">
+        <span v-if="billingPreviewMonthly" class="edit-billing-preview-item">
+          {{ trans.monthlyCost || '折合月费' }}：<strong>{{ billingPreviewMonthly }}</strong>
+        </span>
+        <span v-if="billingPreviewExpireText" class="edit-billing-preview-item">
+          {{ trans.remainingDays || '剩余天数' }}：
+          <strong :style="{ color: billingPreviewSummary.color }">{{ billingPreviewExpireText }}</strong>
+        </span>
+        <span v-if="billingPreviewSummary.hasProgress" class="edit-billing-preview-item">
+          {{ trans.cycleUsed || '已用' }} {{ billingPreviewSummary.usedPercent }}% · {{ trans.cycleRemaining || '剩余' }} {{ billingPreviewSummary.remainingPercent }}%
+        </span>
       </div>
 
       <div class="form-row mobile-two-row">
@@ -275,7 +300,16 @@ import { computed, watch } from 'vue'
 import HelpTooltip from '../../../components/HelpTooltip.vue'
 import { PING_NODE_FIELDS, validatePingNode } from '../../../utils/pingNode.js'
 import { currentLang } from '../../../utils/i18n.js'
-import { BILLING_CYCLES, CURRENCY_OPTIONS, getLocalizedOptionField, normalizePrice, renewExpireDateIfNeeded } from '../../../utils/server.js'
+import {
+  BILLING_CYCLES,
+  CURRENCY_OPTIONS,
+  formatMonthlyCost,
+  formatRemainingDaysLabel,
+  getExpirationSummary,
+  getLocalizedOptionField,
+  normalizePrice,
+  renewExpireDateIfNeeded
+} from '../../../utils/server.js'
 
 const editForm = defineModel('editForm', { type: Object, required: true })
 
@@ -314,6 +348,9 @@ const currencySelectOptions = computed(() => {
 
 const cycleLabel = (item) => getLocalizedOptionField(item, 'label', currentLang.value)
 const currencyLabel = (item) => `${item.symbol} ${getLocalizedOptionField(item, 'name', currentLang.value)}`
+const billingPreviewMonthly = computed(() => formatMonthlyCost(editForm.value, currentLang.value))
+const billingPreviewSummary = computed(() => getExpirationSummary(editForm.value))
+const billingPreviewExpireText = computed(() => formatRemainingDaysLabel(billingPreviewSummary.value, props.trans, currentLang.value))
 
 const normalizeTgNotifySetting = (value) => {
   if (value === true || value === 'true') return '5'

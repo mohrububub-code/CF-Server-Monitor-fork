@@ -49,7 +49,9 @@
             <th>{{ trans.group.toUpperCase() }}</th>
             <th>{{ trans.tags.toUpperCase() }}</th>
             <th>{{ trans.note.toUpperCase() }}</th>
+            <th>{{ (trans.provider || '服务商').toUpperCase() }}</th>
             <th>{{ trans.price.toUpperCase() }}</th>
+            <th>{{ (trans.purchaseDate || '购买日期').toUpperCase() }}</th>
             <th>{{ trans.expirationDate.toUpperCase() }}</th>
             <th>{{ trans.autoRenewal.toUpperCase() }}</th>
             <th>{{ trans.traffic.toUpperCase() }}</th>
@@ -60,7 +62,7 @@
         </thead>
         <tbody>
           <tr v-if="servers.length === 0">
-            <td colspan="14" class="empty-state"><span class="empty-icon">📦</span> {{ trans.noServers }}</td>
+            <td colspan="16" class="empty-state"><span class="empty-icon">📦</span> {{ trans.noServers }}</td>
           </tr>
           <tr
             v-for="server in servers"
@@ -126,13 +128,23 @@
               >{{ server.note || '-' }}</span>
             </td>
             <td>
+              <span class="spec-text">{{ server.provider || '-' }}</span>
+            </td>
+            <td>
               <span
                 class="spec-text"
                 :class="{ 'spec-copied': isSpecCopied(server, 'price') }"
                 @click.stop="emitCopySpec(server, 'price', formatServerPrice(server))"
               >{{ formatServerPrice(server) }}</span>
+              <div v-if="formatServerMonthly(server)" class="table-sub-meta">{{ formatServerMonthly(server) }}</div>
             </td>
-            <td><span class="date-text">{{ server.expire_date || '-' }}</span></td>
+            <td><span class="date-text">{{ server.purchase_date || '-' }}</span></td>
+            <td>
+              <span class="date-text">{{ server.expire_date || '-' }}</span>
+              <div v-if="getServerExpireLabel(server)" class="table-sub-meta">
+                <span :style="{ color: getServerExpireSummary(server).color, fontWeight: 600 }">{{ getServerExpireLabel(server) }}</span>
+              </div>
+            </td>
             <td>
               <span
                 class="renewal-text"
@@ -176,7 +188,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { getFlagRegionCode, formatBytes } from '../../../utils/api'
 import { getPublicAssetUrl } from '../../../utils/config'
 import { currentLang } from '../../../utils/i18n'
-import { detectBillingCycle, detectCurrencySymbol, getBillingCycleOption, getLocalizedOptionField, isEnabledFlag, isFreePrice, normalizeCurrency, normalizePrice } from '../../../utils/server.js'
+import { detectBillingCycle, detectCurrencySymbol, formatMonthlyCost, formatRemainingDaysLabel, getBillingCycleOption, getExpirationSummary, getLocalizedOptionField, isEnabledFlag, isFreePrice, normalizeCurrency, normalizePrice } from '../../../utils/server.js'
 import OsIcon from '../../../components/OsIcon.vue'
 import HelpTooltip from '../../../components/HelpTooltip.vue'
 
@@ -463,6 +475,9 @@ const formatServerPrice = (server) => {
   const cycleLabel = getLocalizedOptionField(option, 'shortLabel', currentLang.value)
   return `${currency}${trimDisplayPrice(price)}/${cycleLabel}`
 }
+const formatServerMonthly = (server) => formatMonthlyCost(server, currentLang.value)
+const getServerExpireSummary = (server) => getExpirationSummary(server)
+const getServerExpireLabel = (server) => formatRemainingDaysLabel(getServerExpireSummary(server), props.trans, currentLang.value)
 const isServerAutoRenewal = (server) => isEnabledFlag(server.auto_renewal)
 const normalizeVersion = (version) => String(version || '').trim()
 const getAgentVersionClass = (version) => {

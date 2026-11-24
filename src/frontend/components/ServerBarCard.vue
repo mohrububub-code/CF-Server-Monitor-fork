@@ -15,13 +15,6 @@
       <span class="status-label" :style="{ color: statusColor, borderColor: statusColor }">{{ statusText }}</span>
     </div>
     <div class="server-meta">
-      <div class="card-meta">
-        <div v-if="sysConfig.show_price && priceText" class="card-meta-item">💰 {{ priceText }}</div>
-        <div v-if="sysConfig.show_expire && server.expire_date" class="card-meta-item card-meta-expire">
-          📅 <span :class="{ 'expired': isExpired }">{{ expireText }}</span>
-          <span v-if="expireDateTitle" class="card-meta-tooltip">{{ expireDateTitle }}</span>
-        </div>
-      </div>
       <div class="card-badges">
         <span v-for="(tag, index) in tagList" :key="tag" :class="['badge', 'badge-tag', tagColorClass(index)]">{{ tag }}</span>
         <span v-if="hasPublicIPv4 && hasPublicIPv6" class="badge badge-v4-v6">IPv4/6</span>
@@ -31,6 +24,19 @@
         </template>
       </div>
     </div>
+    <ServerBillingSummary
+      :has-info="hasBillingCardInfo"
+      :provider="providerText"
+      :price-text="priceText"
+      :monthly-cost-text="monthlyCostText"
+      :purchase-date="purchaseDateText"
+      :expire-date="expireDateText"
+      :expire-text="expireText"
+      :summary="expirationSummary"
+      :show-price="sysConfig.show_price"
+      :show-expire="sysConfig.show_expire"
+      :trans="trans"
+    />
     <div class="server-stats">
       <div class="stat-row">
         <span class="stat-key">CPU</span>
@@ -119,6 +125,7 @@
 
 <script setup>
 import OsIcon from './OsIcon.vue'
+import ServerBillingSummary from './ServerBillingSummary.vue'
 import ServerLatencyPanel from './ServerLatencyPanel.vue'
 import { DEFAULT_SERVER_CARD_CONFIG, useServerCardData } from '../composables/useServerCardData'
 
@@ -157,6 +164,12 @@ const {
   totalRxMonthly,
   totalTxMonthly,
   priceText,
+  providerText,
+  purchaseDateText,
+  expireDateText,
+  monthlyCostText,
+  expirationSummary,
+  hasBillingCardInfo,
   expireDateTitle,
   loadAvg,
   isExpired,

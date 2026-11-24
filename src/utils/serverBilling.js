@@ -174,6 +174,19 @@ export function isEnabledFlag(value) {
   return value === true || value === 1 || value === '1' || value === 'true';
 }
 
+export function normalizeProvider(value) {
+  return String(value ?? '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 64);
+}
+
+export function normalizeDateOnly(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return '';
+  const candidate = `${match[1]}-${match[2]}-${match[3]}`;
+  return parseDateOnly(candidate) ? candidate : '';
+}
+
 function parseDateOnly(value) {
   const match = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return null;

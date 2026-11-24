@@ -3,14 +3,14 @@ export function isDisabledProbeMetric(value) {
 }
 
 export const BILLING_CYCLES = Object.freeze([
-  { value: 'month', months: 1, labelZh: '月', labelEn: 'Monthly', shortLabelZh: '月', shortLabelEn: 'M', labelEs: 'Mensual', shortLabelEs: 'mes', labelZhTw: '月', shortLabelZhTw: '月' },
-  { value: 'quarter', months: 3, labelZh: '季', labelEn: 'Quarterly', shortLabelZh: '季', shortLabelEn: 'Q', labelEs: 'Trimestral', shortLabelEs: 'trim', labelZhTw: '季', shortLabelZhTw: '季' },
-  { value: 'half_year', months: 6, labelZh: '半年', labelEn: 'Half-yearly', shortLabelZh: '半年', shortLabelEn: 'HY', labelEs: 'Semestral', shortLabelEs: 'sem', labelZhTw: '半年', shortLabelZhTw: '半年' },
-  { value: 'year', months: 12, labelZh: '年', labelEn: 'Yearly', shortLabelZh: '年', shortLabelEn: 'Y', labelEs: 'Anual', shortLabelEs: 'año', labelZhTw: '年', shortLabelZhTw: '年' },
-  { value: 'two_years', months: 24, labelZh: '两年', labelEn: 'Two years', shortLabelZh: '2年', shortLabelEn: '2Y', labelEs: 'Dos años', shortLabelEs: '2 años', labelZhTw: '兩年', shortLabelZhTw: '2年' },
-  { value: 'three_years', months: 36, labelZh: '三年', labelEn: 'Three years', shortLabelZh: '3年', shortLabelEn: '3Y', labelEs: 'Tres años', shortLabelEs: '3 años', labelZhTw: '三年', shortLabelZhTw: '3年' },
-  { value: 'four_years', months: 48, labelZh: '四年', labelEn: 'Four years', shortLabelZh: '4年', shortLabelEn: '4Y', labelEs: 'Cuatro años', shortLabelEs: '4 años', labelZhTw: '四年', shortLabelZhTw: '4年' },
-  { value: 'five_years', months: 60, labelZh: '五年', labelEn: 'Five years', shortLabelZh: '5年', shortLabelEn: '5Y', labelEs: 'Cinco años', shortLabelEs: '5 años', labelZhTw: '五年', shortLabelZhTw: '5年' }
+  { value: 'month', months: 1, labelZh: '月付', labelEn: 'Monthly', shortLabelZh: '月', shortLabelEn: 'M', labelEs: 'Mensual', shortLabelEs: 'mes', labelZhTw: '月付', shortLabelZhTw: '月' },
+  { value: 'quarter', months: 3, labelZh: '季付', labelEn: 'Quarterly', shortLabelZh: '季', shortLabelEn: 'Q', labelEs: 'Trimestral', shortLabelEs: 'trim', labelZhTw: '季付', shortLabelZhTw: '季' },
+  { value: 'half_year', months: 6, labelZh: '半年付', labelEn: 'Half-yearly', shortLabelZh: '半年', shortLabelEn: 'HY', labelEs: 'Semestral', shortLabelEs: 'sem', labelZhTw: '半年付', shortLabelZhTw: '半年' },
+  { value: 'year', months: 12, labelZh: '年付', labelEn: 'Yearly', shortLabelZh: '年', shortLabelEn: 'Y', labelEs: 'Anual', shortLabelEs: 'año', labelZhTw: '年付', shortLabelZhTw: '年' },
+  { value: 'two_years', months: 24, labelZh: '两年付', labelEn: 'Two years', shortLabelZh: '2年', shortLabelEn: '2Y', labelEs: 'Dos años', shortLabelEs: '2 años', labelZhTw: '兩年付', shortLabelZhTw: '2年' },
+  { value: 'three_years', months: 36, labelZh: '三年付', labelEn: 'Three years', shortLabelZh: '3年', shortLabelEn: '3Y', labelEs: 'Tres años', shortLabelEs: '3 años', labelZhTw: '三年付', shortLabelZhTw: '3年' },
+  { value: 'four_years', months: 48, labelZh: '四年付', labelEn: 'Four years', shortLabelZh: '4年', shortLabelEn: '4Y', labelEs: 'Cuatro años', shortLabelEs: '4 años', labelZhTw: '四年付', shortLabelZhTw: '4年' },
+  { value: 'five_years', months: 60, labelZh: '五年付', labelEn: 'Five years', shortLabelZh: '5年', shortLabelEn: '5Y', labelEs: 'Cinco años', shortLabelEs: '5 años', labelZhTw: '五年付', shortLabelZhTw: '5年' }
 ]);
 
 export const CURRENCY_OPTIONS = Object.freeze([
@@ -262,4 +262,141 @@ export function formatBillingPrice(server, lang = 'zh') {
   const cycleLabel = getLocalizedOptionField(cycle, 'shortLabel', lang);
 
   return `${currency}${price}/${cycleLabel}`;
+}
+
+export function normalizeProvider(value) {
+  return String(value ?? '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 64);
+}
+
+export function normalizeDateOnly(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return '';
+  const candidate = `${match[1]}-${match[2]}-${match[3]}`;
+  return parseDateOnly(candidate) ? candidate : '';
+}
+
+export function calculateMonthlyCost(server) {
+  const price = normalizePrice(server?.price);
+  if (!price || isFreePrice(price)) return null;
+  const amount = Number.parseFloat(price);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  const currency = normalizeCurrency(server?.currency || detectCurrencySymbol(server?.price)) || '¥';
+  const cycle = getBillingCycleOption(detectBillingCycle(server?.price) || server?.billing_cycle);
+  const months = Number(cycle?.months) || 1;
+  const monthly = amount / months;
+
+  return {
+    currency,
+    months,
+    amount: monthly,
+    formattedAmount: monthly.toFixed(2)
+  };
+}
+
+export function formatMonthlyCost(server, lang = 'zh') {
+  const result = calculateMonthlyCost(server);
+  if (!result) return '';
+  const monthSuffix = lang === 'en' ? '/mo' : '/月';
+  return `${result.currency}${result.formattedAmount}${monthSuffix}`;
+}
+
+function toUtcDayIndex(dateString) {
+  const parsed = parseDateOnly(dateString);
+  if (!parsed) return null;
+  return Math.floor(Date.UTC(parsed.year, parsed.month - 1, parsed.day) / 86400000);
+}
+
+function getLocalTodayDayIndex(now = Date.now()) {
+  const d = new Date(Number(now) || Date.now());
+  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+}
+
+export function getExpirationSummary(server, now = Date.now()) {
+  const purchaseDate = normalizeDateOnly(server?.purchase_date);
+  const expireDate = normalizeDateOnly(server?.expire_date);
+  const todayIndex = getLocalTodayDayIndex(now);
+  const expireIndex = toUtcDayIndex(expireDate);
+  const purchaseIndex = toUtcDayIndex(purchaseDate);
+
+  if (expireIndex === null) {
+    return {
+      purchaseDate,
+      expireDate,
+      hasExpireDate: false,
+      remainingDays: null,
+      level: 'none',
+      color: 'var(--text-secondary)',
+      isExpired: false,
+      hasProgress: false,
+      totalDays: 0,
+      usedDays: 0,
+      remainingCycleDays: 0,
+      usedPercent: 0,
+      remainingPercent: 0
+    };
+  }
+
+  const remainingDays = expireIndex - todayIndex;
+  let level = 'safe';
+  let color = '#00d4aa';
+  if (remainingDays <= 0) {
+    level = 'expired';
+    color = '#f85149';
+  } else if (remainingDays <= 7) {
+    level = 'urgent';
+    color = '#ff8c42';
+  } else if (remainingDays <= 30) {
+    level = 'warning';
+    color = '#f0c040';
+  }
+
+  let hasProgress = false;
+  let totalDays = 0;
+  let usedDays = 0;
+  let remainingCycleDays = 0;
+  let usedPercent = 0;
+  let remainingPercent = 0;
+
+  if (purchaseIndex !== null && expireIndex > purchaseIndex) {
+    totalDays = expireIndex - purchaseIndex;
+    usedDays = Math.max(0, Math.min(totalDays, todayIndex - purchaseIndex));
+    remainingCycleDays = Math.max(0, totalDays - usedDays);
+    usedPercent = Math.round((usedDays / totalDays) * 1000) / 10;
+    remainingPercent = Math.round((100 - usedPercent) * 10) / 10;
+    hasProgress = true;
+  }
+
+  return {
+    purchaseDate,
+    expireDate,
+    hasExpireDate: true,
+    remainingDays,
+    level,
+    color,
+    isExpired: remainingDays <= 0,
+    hasProgress,
+    totalDays,
+    usedDays,
+    remainingCycleDays,
+    usedPercent,
+    remainingPercent
+  };
+}
+
+export function formatRemainingDaysLabel(summary, trans = {}, lang = 'zh') {
+  if (!summary || !summary.hasExpireDate) return '';
+  const days = summary.remainingDays;
+  const isEn = String(lang || '').startsWith('en');
+  if (days > 0) {
+    const tpl = trans.remainingDaysText || (isEn ? '{days}d left' : '剩余 {days} 天');
+    return tpl.replace('{days}', String(days));
+  }
+  if (days === 0) {
+    return trans.dueToday || (isEn ? 'Expires today' : '今日到期');
+  }
+  const tpl = trans.expiredDaysText || (isEn ? 'Expired {days}d' : '已过期 {days} 天');
+  return tpl.replace('{days}', String(Math.abs(days)));
 }

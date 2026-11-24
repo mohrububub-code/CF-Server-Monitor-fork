@@ -5377,3 +5377,168 @@ body.mikus-theme .mikus-stats-mascot-img {
         padding: 12px;
     }
 }
+
+
+/* --------------------------------------------------------------------------
+   购买与到期管理（服务器卡片 / 详情页 / 后台预览）
+   -------------------------------------------------------------------------- */
+.billing-summary-box {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.billing-summary-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.billing-summary-cost {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.billing-provider-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent-blue, #4da6ff);
+    background: rgba(77, 166, 255, 0.12);
+    border: 1px solid rgba(77, 166, 255, 0.25);
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.billing-price-text {
+    color: var(--text-primary, #e6edf3);
+    font-weight: 600;
+}
+
+.billing-monthly-text {
+    color: var(--text-secondary, #8b949e);
+    font-weight: 400;
+}
+
+.expire-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    border: 1px solid currentColor;
+    background: rgba(255, 255, 255, 0.04);
+    white-space: nowrap;
+}
+
+.expire-status-inline {
+    margin-left: 6px;
+}
+
+.billing-summary-dates {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    color: var(--text-secondary, #8b949e);
+    font-size: 10.5px;
+}
+
+.billing-date-sep {
+    opacity: 0.55;
+}
+
+.billing-progress-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.billing-progress-bar {
+    width: 100%;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+}
+
+.billing-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.3s ease;
+    min-width: 2px;
+}
+
+.billing-progress-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-muted, #6e7681);
+}
+
+.detail-billing-progress {
+    margin-top: 6px;
+    width: 100%;
+}
+
+.edit-billing-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: -4px 0 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: rgba(0, 212, 170, 0.07);
+    border: 1px solid rgba(0, 212, 170, 0.22);
+    font-size: 12px;
+    color: var(--text-secondary, #8b949e);
+}
+
+.edit-billing-preview strong {
+    color: var(--text-primary, #e6edf3);
+}
+
+.table-sub-meta {
+    margin-top: 2px;
+    font-size: 11px;
+    color: var(--text-secondary, #8b949e);
+    white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+    .billing-summary-box {
+        padding: 7px 8px;
+        gap: 4px;
+    }
+
+    .billing-summary-top {
+        gap: 4px;
+    }
+
+    .billing-summary-dates {
+        font-size: 10px;
+    }
+
+    .edit-billing-preview {
+        gap: 6px 12px;
+        font-size: 11.5px;
+    }
+}

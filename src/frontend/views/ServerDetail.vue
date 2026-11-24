@@ -52,9 +52,41 @@
           <span class="sysinfo-label">⏱ {{ trans.uptime }}</span>
           <span class="sysinfo-value">{{ formatUptime(server.boot_time) }}</span>
         </div>
-        <div class="sysinfo-item" v-if="server.expire_date">
-          <span class="sysinfo-label">📅 {{ trans.expire }}</span>
-          <span class="sysinfo-value" :class="{ 'expired': isExpired }">{{ expireDaysText }}</span>
+        <div class="sysinfo-item" v-if="server.provider">
+          <span class="sysinfo-label">🏢 {{ trans.provider || '服务商' }}</span>
+          <span class="sysinfo-value sysinfo-small">{{ server.provider }}</span>
+        </div>
+        <div class="sysinfo-item" v-if="billingPriceText">
+          <span class="sysinfo-label">💰 {{ trans.price }}</span>
+          <span class="sysinfo-value sysinfo-small">
+            {{ billingPriceText }}<template v-if="monthlyCostText"> ({{ monthlyCostText }})</template>
+          </span>
+        </div>
+        <div class="sysinfo-item" v-if="purchaseDateText">
+          <span class="sysinfo-label">🛒 {{ trans.purchaseDate || '购买日期' }}</span>
+          <span class="sysinfo-value sysinfo-small">{{ purchaseDateText }}</span>
+        </div>
+        <div class="sysinfo-item" v-if="expirationSummary.hasExpireDate">
+          <span class="sysinfo-label">📅 {{ trans.expirationDate }} / {{ trans.expire }}</span>
+          <span class="sysinfo-value sysinfo-small">
+            {{ expirationSummary.expireDate }}
+            <span
+              class="expire-status-pill expire-status-inline"
+              :style="{ color: expirationSummary.color, borderColor: expirationSummary.color }"
+            >{{ expireDaysText }}</span>
+          </span>
+          <div v-if="expirationSummary.hasProgress" class="billing-progress-wrap detail-billing-progress">
+            <div class="billing-progress-bar">
+              <div
+                class="billing-progress-fill"
+                :style="{ width: expirationSummary.usedPercent + '%', background: expirationSummary.color }"
+              ></div>
+            </div>
+            <div class="billing-progress-meta">
+              <span>{{ trans.cycleUsed || '已用' }} {{ expirationSummary.usedPercent }}%</span>
+              <span>{{ trans.cycleRemaining || '剩余' }} {{ expirationSummary.remainingPercent }}%</span>
+            </div>
+          </div>
         </div>
         <div class="sysinfo-item">
           <span class="sysinfo-label">💻 {{ trans.os }} / {{ trans.architecture }}</span>
@@ -407,11 +439,18 @@ import { isAdminLoggedIn } from '../utils/http'
 import { getTrafficUsageBytes } from '../composables/useServerCardData'
 import { getPublicAssetUrl } from '../utils/config.js'
 import Chart from 'chart.js/auto'
-import { t, useTranslation } from '../utils/i18n'
+import { currentLang, t, useTranslation } from '../utils/i18n'
 import { CHART, HISTORY } from '../utils/constants'
 import { formatDateTime, normalizeTimestamp as normalizeMetricTimestamp } from '../utils/time.js'
 import useTheme from '../composables/useTheme'
-import { isDisabledProbeMetric } from '../utils/server.js'
+import {
+  formatBillingPrice,
+  formatMonthlyCost,
+  formatRemainingDaysLabel,
+  getExpirationSummary,
+  isDisabledProbeMetric,
+  normalizeDateOnly
+} from '../utils/server.js'
 import { resolvePlaybackCursor } from '../utils/playback.js'
 import { applyMikusThemeOptions } from '../utils/themeOptions.js'
 
@@ -654,20 +693,14 @@ const diskPercent = computed(() => {
 const diskIo = computed(() => hasValidDiskIoPayload(server.value) ? normalizeDiskIo(server.value) : EMPTY_DISK_IO)
 const hasGpuData = computed(() => gpuInfoList.value.length > 0)
 
-const isExpired = computed(() => {
-  if (!server.value.expire_date) return false
-  const expTime = new Date(server.value.expire_date).getTime()
-  return isNaN(expTime) ? false : expTime < Date.now()
-})
+const billingPriceText = computed(() => formatBillingPrice(server.value, currentLang.value))
+const monthlyCostText = computed(() => formatMonthlyCost(server.value, currentLang.value))
+const purchaseDateText = computed(() => normalizeDateOnly(server.value.purchase_date))
+const expirationSummary = computed(() => getExpirationSummary(server.value, Date.now()))
 
-const expireDaysText = computed(() => {
-  if (!server.value.expire_date) return ''
-  const expTime = new Date(server.value.expire_date).getTime()
-  if (isNaN(expTime)) return ''
-  const diff = expTime - Date.now()
-  const days = Math.ceil(diff / (1000 * 3600 * 24))
-  return days > 0 ? `${days}${days === 1 ? trans.value.day : trans.value.days}` : trans.value.expired
-})
+const isExpired = computed(() => expirationSummary.value.isExpired)
+
+const expireDaysText = computed(() => formatRemainingDaysLabel(expirationSummary.value, trans.value, currentLang.value))
 
 const cpuChartRef = ref(null)
 const gpuChartRef = ref(null)
@@ -1527,7 +1560,7 @@ const appendDataToChart = (chart, datasetIndex, timestamp, value, isPing = false
   chart.update('none')
 }
 
-const STATIC_FIELDS = ['id', 'name', 'region', 'arch', 'os', 'kernel_version', 'cpu_info', 'cpu_cores', 'gpu_info', 'expire_date', 'server_group', 'traffic_limit', 'net_rx_monthly', 'net_tx_monthly', 'boot_time', 'timestamp', 'ip_v4', 'ip_v6']
+const STATIC_FIELDS = ['id', 'name', 'region', 'arch', 'os', 'kernel_version', 'cpu_info', 'cpu_cores', 'gpu_info', 'provider', 'purchase_date', 'price', 'currency', 'billing_cycle', 'expire_date', 'server_group', 'traffic_limit', 'net_rx_monthly', 'net_tx_monthly', 'boot_time', 'timestamp', 'ip_v4', 'ip_v6']
 const REALTIME_SAMPLE_FIELDS = new Set([
   'cpu', 'ram_total', 'ram_used', 'swap_total', 'swap_used',
   'net_in_speed', 'net_out_speed', 'disk'

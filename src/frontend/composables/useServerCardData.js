@@ -1,9 +1,16 @@
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { formatBytes, getFlagRegionCode, isServerOnline } from '../utils/api'
 import { getPublicAssetUrl } from '../utils/config'
 import { currentLang, useTranslation } from '../utils/i18n'
 import { LATENCY_WINDOW, PING } from '../utils/constants'
-import { formatBillingPrice } from '../utils/server.js'
+import {
+  formatBillingPrice,
+  formatMonthlyCost,
+  formatRemainingDaysLabel,
+  getExpirationSummary,
+  normalizeDateOnly,
+  normalizeProvider
+} from '../utils/server.js'
 
 export const DEFAULT_SERVER_CARD_CONFIG = {
   show_price: true,
@@ -96,13 +103,23 @@ export const getUsageColor = (percent) => {
 
 export function useServerCardData(props) {
   const trans = useTranslation()
+  const localClock = ref(Date.now())
+  const localClockTimer = typeof window !== 'undefined'
+    ? window.setInterval(() => { localClock.value = Date.now() }, 60000)
+    : null
+  onBeforeUnmount(() => {
+    if (localClockTimer !== null && typeof window !== 'undefined') {
+      window.clearInterval(localClockTimer)
+    }
+  })
 
   const currentTime = computed(() => {
     const ts = Number(props.server.current_timestamp)
     if (Number.isFinite(ts) && ts > 0) {
-      return ts < 10000000000 ? ts * 1000 : ts
+      const serverMs = ts < 10000000000 ? ts * 1000 : ts
+      return Math.max(serverMs, localClock.value)
     }
-    return Date.now()
+    return localClock.value
   })
 
   const regionCode = computed(() => getFlagRegionCode(props.server.region))
@@ -176,6 +193,16 @@ export function useServerCardData(props) {
   const totalRxMonthly = computed(() => formatBytes(props.server.net_rx_monthly))
   const totalTxMonthly = computed(() => formatBytes(props.server.net_tx_monthly))
   const priceText = computed(() => formatBillingPrice(props.server, currentLang.value))
+  const providerText = computed(() => normalizeProvider(props.server.provider))
+  const purchaseDateText = computed(() => normalizeDateOnly(props.server.purchase_date))
+  const expireDateText = computed(() => normalizeDateOnly(props.server.expire_date))
+  const monthlyCostText = computed(() => formatMonthlyCost(props.server, currentLang.value))
+  const expirationSummary = computed(() => getExpirationSummary(props.server, currentTime.value))
+  const hasBillingCardInfo = computed(() => Boolean(
+    providerText.value ||
+    (props.sysConfig.show_price && priceText.value) ||
+    (props.sysConfig.show_expire && (purchaseDateText.value || expireDateText.value))
+  ))
 
   const formatDateOnly = (value) => {
     const raw = String(value || '').trim()
@@ -247,18 +274,9 @@ export function useServerCardData(props) {
   const ramUsageText = computed(() => formatMetricUsage(props.server.ram_used, props.server.ram_total))
   const diskUsageText = computed(() => formatMetricUsage(props.server.disk_used, props.server.disk_total))
 
-  const isExpired = computed(() => {
-    const expTime = new Date(props.server.expire_date).getTime()
-    return !isNaN(expTime) && expTime < currentTime.value
-  })
+  const isExpired = computed(() => expirationSummary.value.isExpired)
 
-  const expireText = computed(() => {
-    const expTime = new Date(props.server.expire_date).getTime()
-    if (isNaN(expTime)) return ''
-    const diff = expTime - currentTime.value
-    const days = Math.ceil(diff / (1000 * 3600 * 24))
-    return days > 0 ? `${days}${trans.value.expireDays}` : trans.value.expired
-  })
+  const expireText = computed(() => formatRemainingDaysLabel(expirationSummary.value, trans.value, currentLang.value))
 
   const getRingStyle = (value, color) => ({
     '--ring-value': `${clampPercent(value)}`,
@@ -491,6 +509,12 @@ export function useServerCardData(props) {
     totalRxMonthly,
     totalTxMonthly,
     priceText,
+    providerText,
+    purchaseDateText,
+    expireDateText,
+    monthlyCostText,
+    expirationSummary,
+    hasBillingCardInfo,
     expireDateTitle,
     loadAvg,
     uptimeText,

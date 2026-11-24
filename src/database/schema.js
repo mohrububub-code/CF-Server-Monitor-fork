@@ -79,6 +79,8 @@ export async function initDatabase(db) {
           tags TEXT DEFAULT '',
           note TEXT DEFAULT '',
           price TEXT DEFAULT '',
+          provider TEXT DEFAULT '',
+          purchase_date TEXT DEFAULT '',
           billing_cycle TEXT DEFAULT 'month',
           auto_renewal TEXT DEFAULT '0',
           currency TEXT DEFAULT '¥',

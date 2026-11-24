@@ -12,7 +12,7 @@ import { getNotificationMessages } from '../services/notificationMessages.js';
 import { HISTORY_PARTITION_PICK_SQL, insertServerWithPartition } from '../database/indexOptimization.js';
 import { isValidTrafficCorrection, normalizeConnectionMode, normalizePingMode, normalizeWssReportInterval, validateAgentConfigInput, validatePingNode, validateNetworkInterfaces } from '../utils/agentConfig.js';
 import { scheduleAgentConfigChanged, scheduleAgentReportModeChanged } from '../utils/agentConfigNotify.js';
-import { detectBillingCycle, detectCurrencySymbol, normalizeBillingCycle, normalizeCurrency, normalizePrice, renewExpireDateIfNeeded } from '../utils/serverBilling.js';
+import { detectBillingCycle, detectCurrencySymbol, normalizeBillingCycle, normalizeCurrency, normalizeDateOnly, normalizePrice, normalizeProvider, renewExpireDateIfNeeded } from '../utils/serverBilling.js';
 import { THEME_PREVIEW_AUTH_TTL_SECONDS } from '../utils/config.js';
 
 const PING_NODE_FIELDS = ['custom_ct', 'custom_cu', 'custom_cm', 'custom_bd', 'node_1', 'node_2', 'node_3', 'node_4'];
@@ -27,12 +27,12 @@ const IMPORT_SERVER_SQL = `
     SELECT ${HISTORY_PARTITION_PICK_SQL} AS pid
     FROM pref
   )
-  INSERT INTO servers (id, name, server_group, region, tags, note, price, billing_cycle, auto_renewal,
+  INSERT INTO servers (id, name, server_group, region, tags, note, provider, purchase_date, price, billing_cycle, auto_renewal,
     currency, expire_date,
     traffic_limit, traffic_calc_type, "interface", reset_day, collect_interval, report_interval, wss_report_interval, connection_mode, ping_mode,
     auto_update, custom_ct, custom_cu, custom_cm, custom_bd, node_1, node_2, node_3, node_4, rx_correction, tx_correction,
     offline_notify_disabled, is_hidden, sort_order, history_partition_id, timestamp, traffic_alert_percent)
-  SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, pid, ?, ?
+  SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, pid, ?, ?
   FROM next
   WHERE pid IS NOT NULL
 `;
@@ -61,12 +61,14 @@ function normalizeServerBillingData(data = {}) {
   const autoRenewal = normalizeBooleanFlag(data.auto_renewal);
 
   return {
+    provider: normalizeProvider(data.provider),
+    purchase_date: normalizeDateOnly(data.purchase_date),
     price: normalizePrice(data.price),
     billing_cycle: billingCycle,
     auto_renewal: autoRenewal,
     currency: normalizeCurrency(data.currency || detectCurrencySymbol(data.price) || '¥'),
     expire_date: renewExpireDateIfNeeded(
-      data.expire_date || '',
+      normalizeDateOnly(data.expire_date) || String(data.expire_date || '').trim(),
       billingCycle,
       autoRenewal
     ).expire_date
@@ -1147,7 +1149,7 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
       });
     }
     else if (data.action === 'edit') {
-      const { id, name, server_group, region, tags, note, price, billing_cycle, auto_renewal, currency, expire_date, traffic_limit, traffic_calc_type, traffic_alert_percent, interface: networkInterfaceInput, reset_day, collect_interval, report_interval, wss_report_interval, connection_mode, ping_mode, auto_update, custom_ct, custom_cu, custom_cm, custom_bd, node_1, node_2, node_3, node_4, rx_correction, tx_correction, offline_notify_disabled, is_hidden } = data;
+      const { id, name, server_group, region, tags, note, provider, purchase_date, price, billing_cycle, auto_renewal, currency, expire_date, traffic_limit, traffic_calc_type, traffic_alert_percent, interface: networkInterfaceInput, reset_day, collect_interval, report_interval, wss_report_interval, connection_mode, ping_mode, auto_update, custom_ct, custom_cu, custom_cm, custom_bd, node_1, node_2, node_3, node_4, rx_correction, tx_correction, offline_notify_disabled, is_hidden } = data;
       if (!id || !isValidUUID(id)) {
         return createBadRequestResponse('invalidServerId');
       }
@@ -1192,17 +1194,18 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
       }
 
       const billingData = normalizeServerBillingData({
+        provider,
+        purchase_date,
         price,
         billing_cycle,
         auto_renewal,
         currency,
         expire_date
       });
-      
-      try {
-        await env.DB.prepare(`
+
+      const runEditUpdate = () => env.DB.prepare(`
           UPDATE servers
-          SET name = ?, server_group = ?, region = ?, tags = ?, note = ?, price = ?, billing_cycle = ?, auto_renewal = ?, currency = ?, expire_date = ?, traffic_limit = ?, traffic_calc_type = ?, "interface" = ?, reset_day = ?, collect_interval = ?, report_interval = ?, wss_report_interval = ?, connection_mode = ?, ping_mode = ?, auto_update = ?, custom_ct = ?, custom_cu = ?, custom_cm = ?, custom_bd = ?, node_1 = ?, node_2 = ?, node_3 = ?, node_4 = ?, rx_correction = ?, tx_correction = ?, offline_notify_disabled = ?, is_hidden = ?, traffic_alert_percent = ?
+          SET name = ?, server_group = ?, region = ?, tags = ?, note = ?, provider = ?, purchase_date = ?, price = ?, billing_cycle = ?, auto_renewal = ?, currency = ?, expire_date = ?, traffic_limit = ?, traffic_calc_type = ?, "interface" = ?, reset_day = ?, collect_interval = ?, report_interval = ?, wss_report_interval = ?, connection_mode = ?, ping_mode = ?, auto_update = ?, custom_ct = ?, custom_cu = ?, custom_cm = ?, custom_bd = ?, node_1 = ?, node_2 = ?, node_3 = ?, node_4 = ?, rx_correction = ?, tx_correction = ?, offline_notify_disabled = ?, is_hidden = ?, traffic_alert_percent = ?
           WHERE id = ?
         `).bind(
           name || '',
@@ -1210,6 +1213,8 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
           normalizeServerRegion(region),
           safeTags,
           safeNote,
+          billingData.provider,
+          billingData.purchase_date,
           billingData.price,
           billingData.billing_cycle,
           billingData.auto_renewal,
@@ -1240,8 +1245,20 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
           normalizePctOrNull(traffic_alert_percent),
           id
         ).run();
+
+      try {
+        await runEditUpdate();
       } catch (e) {
-        return handleServerMutationError(env.DB, e, 'serverUpdateFailed');
+        if (isMissingColumnError(e)) {
+          try {
+            await addServerColumns(env.DB);
+            await runEditUpdate();
+          } catch (retryErr) {
+            return handleServerMutationError(env.DB, retryErr, 'serverUpdateFailed');
+          }
+        } else {
+          return handleServerMutationError(env.DB, e, 'serverUpdateFailed');
+        }
       }
       
       clearServersListCache();
@@ -1361,6 +1378,8 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
             normalizeServerRegion(server.region),
             server.tags || '',
             server.note || '',
+            billingData.provider,
+            billingData.purchase_date,
             billingData.price,
             billingData.billing_cycle,
             billingData.auto_renewal,
